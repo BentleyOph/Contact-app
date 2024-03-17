@@ -52,3 +52,11 @@ func DeleteContact(id int64) {
 func UpdateContact(id int64, contact Contact) {
 	db.Where("ID = ?", id).Save(&contact)
 }
+
+
+func GetContactsCount() int {
+	var contacts []Contact
+	var count int
+	db.Find(&contacts).Count(&count)
+	return count
+}
