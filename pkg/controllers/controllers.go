@@ -4,14 +4,14 @@ import (
 	// "encoding/json"
 	"fmt"
 	"github.com/BentleyOph/htmx-go/pkg/models"
-	// "github.com/BentleyOph/htmx-go/pkg/utils"
+	"github.com/BentleyOph/htmx-go/pkg/utils"
 	"github.com/gorilla/mux"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
-	// "time"
+	"time"
 )
 
 var errorCheck = func(err error) {
@@ -57,13 +57,21 @@ func GetContacts(w http.ResponseWriter, r *http.Request) {
 	// Pass the search term to the GetAllContacts function
 	contacts := models.GetAllContacts(searchTerm)
 	fmt.Println("Contacts: ", contacts)
+	//using archiver too
+	archiver := utils.GetArchiver()
+
 	data := struct {
-		SearchTerm string
-		Contacts   []models.Contact
+		SearchTerm      string
+		Contacts        []models.Contact
+		Status          string
+		ProgressPercent int
 	}{
-		SearchTerm: searchTerm,
-		Contacts:   contacts,
+		SearchTerm:      searchTerm,
+		Contacts:        contacts,
+		Status:          archiver.Status(),
+		ProgressPercent: archiver.ProgressPercent(),
 	}
+	fmt.Println("Archiver status: ", archiver.Status())
 
 	// If the request header HX-Trigger is equal to “search” we want to do something different
 	if r.Header.Get("HX-Trigger") == "search" {
@@ -79,6 +87,20 @@ func GetContacts(w http.ResponseWriter, r *http.Request) {
 		return
 
 	}
+
+	if archiver.Status() == "Running" || archiver.Status() == "Complete"  && r.Header.Get("HX-Trigger") == "archive"{
+		// Return as a response the archive-ui.html template with the contacts and the archiver status passed in
+		wd, err := os.Getwd()
+		if err != nil {
+			log.Fatal(err)
+		}
+		tmpl := template.Must(template.ParseFiles(wd + "/../../static/archive-status.html"))
+		// fmt.Println("Search triggered")
+		err = tmpl.Execute(w, data)
+		errorCheck(err)
+		return
+	}
+
 	wd, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
@@ -223,29 +245,51 @@ func DeleteSelectedContacts(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/contacts", http.StatusSeeOther)
 }
 
-// func StartArchiveContacts(w http.ResponseWriter, r *http.Request) {
-// 	archiver := GetArchiver()
-// 	archiver.Run()
-// 	http.Redirect(w, r, "/contacts", http.StatusSeeOther)
-// }
+func StartArchiveContacts(w http.ResponseWriter, r *http.Request) {
+	archiver := utils.GetArchiver()
+	archiver.Run()
+	// create archiver data to pass to tmpl
+	archiverData := struct {
+		Status string
+	}{
+		Status: archiver.Status(),
+	}
 
-// func ResetArchiveContacts(w http.ResponseWriter, r *http.Request) {
-// 	archiver := GetArchiver()
-// 	archiver.Reset()
-// 	http.Redirect(w, r, "/contacts", http.StatusSeeOther)
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	tmpl := template.Must(template.ParseFiles(wd + "/../../static/archive-ui.html"))
+	tmpl.Execute(w, archiverData)
+	fmt.Println("archive status while Start fn ", archiver.Status())
+	errorCheck(err)
 
-// }
+	GetContacts(w, r)
+}
 
-// func GetArchiveContent(w http.ResponseWriter, r *http.Request) {
-// 	manager := GetArchiver()
-// 	archiveFile, e := os.Open(manager.ArchiveFile())
-// 	if e != nil {
-// 		http.Error(w, "Archive Not Found", http.StatusNotFound)
-// 		return
-// 	}
-// 	defer archiveFile.Close()
-// 	w.Header().Set("Content-Disposition", "attachment; filename=\"archive.json\"")
-// 	w.Header().Set("Content-Type", "application/json")
-// 	http.ServeContent(w, r, "archive.json", time.Now(), archiveFile)
+func ResetArchiveContacts(w http.ResponseWriter, r *http.Request) {
+	archiver := utils.GetArchiver()
+	archiver.Reset()
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	tmpl := template.Must(template.ParseFiles(wd + "/../../static/archive-ui.html"))
+	tmpl.Execute(w, nil)
+	fmt.Println("archive status 3 ", archiver.Status())
+}
 
-// }
+func GetArchiveContent(w http.ResponseWriter, r *http.Request) {
+	manager := utils.GetArchiver()
+	fmt.Println("runs here")
+	archiveFile, e := os.Open(manager.ArchiveFile())
+	if e != nil {
+		http.Error(w, "Archive Not Found", http.StatusNotFound)
+		return
+	}
+	defer archiveFile.Close()
+	w.Header().Set("Content-Disposition", "attachment; filename=\"contacts.zip\"")
+	w.Header().Set("Content-Type", "application/zip")
+	http.ServeContent(w, r, "contacts.zip", time.Now(), archiveFile)
+}
+

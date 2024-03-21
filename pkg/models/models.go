@@ -60,3 +60,9 @@ func GetContactsCount() int {
 	db.Find(&contacts).Count(&count)
 	return count
 }
+
+func DownloadContacts() []Contact {
+	var contacts []Contact
+	db.Find(&contacts)
+	return contacts
+}

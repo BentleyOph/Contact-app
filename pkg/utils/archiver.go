@@ -1,10 +1,14 @@
-package controllers
+package utils
 
 import (
 	"fmt"
 	"math/rand"
 	"sync"
 	"time"
+	"archive/zip"
+	"os"
+	"github.com/BentleyOph/htmx-go/pkg/models"
+	"log"
 )
 
 type Archiver struct {
@@ -71,8 +75,36 @@ func (a *Archiver) runImpl() {
 	a.mu.Unlock()
 }
 
+
 func (a *Archiver) ArchiveFile() string {
-	return "contacts.json"
+	//use models.DownloadContants to generate the archive file
+	contacts := models.DownloadContacts()
+
+	//create a file with the contacts
+	file, err := os.Create("contacts.zip")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	//create a new zip archive
+	zipWriter := zip.NewWriter(file)
+	defer zipWriter.Close()
+
+	//iterate over the contacts and add them to the zip file
+	for _, contact := range contacts {
+		contactFile, err := zipWriter.Create(contact.FirstName + ".txt")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		_, err = contactFile.Write([]byte(contact.LastName + "\n" + contact.Email + "\n" + contact.Phone))
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	return "contacts.zip"
 }
 
 func (a *Archiver) Reset() {
