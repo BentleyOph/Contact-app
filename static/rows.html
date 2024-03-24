@@ -1,7 +1,7 @@
 {{define "rows"}}
 {{ range .Contacts}}
 <tr>
-    <td><input type="checkbox" name="selectedContacts" value="{{.ID}}"></td>
+    <td><input type="checkbox" name="selectedContacts" value="{{.ID}}" x-model="selected"></td>
     <td>{{ .FirstName }}</td>
     <td>{{ .LastName }}</td>
     <td>{{ .Phone }}</td>
